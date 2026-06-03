@@ -29,7 +29,8 @@ export function loadConfig() {
         const raw = readFileSync(path, 'utf8');
         config = JSON.parse(raw);
         break;
-      } catch {
+      } catch (err) {
+        console.error(`[deepseek-quota] 配置文件解析失败: ${path} — ${err.message}`);
         // continue to next path
       }
     }
@@ -67,6 +68,16 @@ export function loadConfig() {
       outputPerMillion: 6.0,
       currency: 'CNY',
     };
+  }
+
+  // 参数校验
+  if (typeof config.refreshInterval !== 'number' || config.refreshInterval < 5000) {
+    console.warn(`[deepseek-quota] refreshInterval 无效 (${config.refreshInterval})，已设置为 60000ms`);
+    config.refreshInterval = 60000;
+  }
+  if (typeof config.sessionBudgetTokens !== 'number' || config.sessionBudgetTokens <= 0) {
+    console.warn(`[deepseek-quota] sessionBudgetTokens 无效 (${config.sessionBudgetTokens})，已设置为 1000000`);
+    config.sessionBudgetTokens = 1000000;
   }
 
   // 展开 ~ 路径

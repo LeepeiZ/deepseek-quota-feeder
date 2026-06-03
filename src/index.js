@@ -47,8 +47,19 @@ async function main() {
   // 首次立即执行
   await tick();
 
-  // 定时刷新
-  setInterval(tick, config.refreshInterval);
+  // 定时刷新（递归 setTimeout，防止 API 调用重叠）
+  let running = false;
+  async function loop() {
+    if (running) return;
+    running = true;
+    try {
+      await tick();
+    } finally {
+      running = false;
+    }
+    loopId = setTimeout(loop, config.refreshInterval);
+  }
+  let loopId = setTimeout(loop, config.refreshInterval);
 
   console.log('Running... Press Ctrl+C to stop.\n');
 }

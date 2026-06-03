@@ -55,8 +55,6 @@ export async function fetchBalance(apiKey) {
     throw new Error('DEEPSEEK_API_KEY not configured. Set it in ~/.deepseek-quota/.token or DEEPSEEK_API_KEY env var.');
   }
 
-  let lastError = null;
-
   for (let attempt = 0; attempt < MAX_RETRIES; attempt++) {
     try {
       const response = await fetchWithTimeout(
@@ -75,7 +73,7 @@ export async function fetchBalance(apiKey) {
         const err = new Error(`DeepSeek balance API error: ${response.status} ${response.statusText}${text ? ` - ${text}` : ''}`);
         err.statusCode = response.status;
 
-        // 4xx 错误不重试
+        // 4xx 错误不重试，直接抛出
         if (response.status >= 400 && response.status < 500) {
           throw err;
         }
@@ -86,19 +84,16 @@ export async function fetchBalance(apiKey) {
       const data = await response.json();
       return parseBalanceResponse(data);
     } catch (err) {
-      lastError = err;
-
+      // 最后一次尝试或不可重试错误 → 直接抛出
       if (!isRetryable(err) || attempt >= MAX_RETRIES - 1) {
         throw err;
       }
 
-      // 指数退避等待
+      // 指数退避等待：1s → 2s → 4s
       const delay = RETRY_BASE_DELAY_MS * Math.pow(2, attempt);
       await new Promise((resolve) => setTimeout(resolve, delay));
     }
   }
-
-  throw lastError;
 }
 
 /**

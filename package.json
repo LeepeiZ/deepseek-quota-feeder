@@ -1,14 +1,13 @@
 {
   "name": "deepseek-quota-feeder",
-  "version": "1.0.2",
+  "version": "1.0.3",
   "description": "DeepSeek API quota monitor with MCP integration — live balance, cost tracking, and session stats in Claude Code",
   "type": "module",
   "main": "src/index.js",
   "bin": {
     "deepseek-quota-feeder": "src/index.js",
     "deepseek-quota-mcp": "src/mcp-server.js",
-    "deepseek-quota-setup": "src/setup-mcp.js",
-    "deepseek-quota-configure-hud": "src/configure-hud.js"
+    "deepseek-quota-setup": "src/setup-mcp.js"
   },
   "files": [
     "src/",

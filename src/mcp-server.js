@@ -185,20 +185,31 @@ async function refreshQuota() {
   }
 }
 
+let running = false;
+
 function startRefreshLoop() {
-  intervalId = setInterval(() => {
-    refreshQuota().then((result) => {
+  async function loop() {
+    if (running) return; // 防止重叠调用
+    running = true;
+    try {
+      const result = await refreshQuota();
       if (result.success) {
         console.error(`[deepseek-quota] 余额: ¥${result.balance.totalBalance.toFixed(2)}`);
       } else {
         console.error(`[deepseek-quota] 刷新失败: ${result.error}`);
       }
-    });
-  }, config.refreshInterval);
+    } catch (err) {
+      console.error(`[deepseek-quota] 刷新异常: ${err.message}`);
+    } finally {
+      running = false;
+    }
+    intervalId = setTimeout(loop, config.refreshInterval);
+  }
+  loop();
 }
 
 function stopRefreshLoop() {
-  if (intervalId) { clearInterval(intervalId); intervalId = null; }
+  if (intervalId) { clearTimeout(intervalId); intervalId = null; }
 }
 
 const server = new Server(
