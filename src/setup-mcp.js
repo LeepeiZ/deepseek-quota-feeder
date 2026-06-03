@@ -5,7 +5,7 @@ import {
   checkClaudeCode,
   checkPackageCommand,
 } from './utils/env-check.js';
-import { readFileSync, mkdirSync, writeFileSync } from 'node:fs';
+import { readFileSync, mkdirSync, writeFileSync, existsSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -35,7 +35,21 @@ async function main() {
   console.log(`✓ Found Claude Code: ${claude.path}`);
   if (claude.version) console.log(`  Version: ${claude.version}`);
 
-  // 3. Register MCP server
+  // 3. Check API Key
+  const tokenPath = join(homedir(), '.deepseek-quota', '.token');
+  const hasEnvKey = !!process.env.DEEPSEEK_API_KEY;
+  const hasTokenFile = existsSync(tokenPath);
+  if (!hasEnvKey && !hasTokenFile) {
+    console.warn('⚠  API Key not configured');
+    console.warn(`   Set via env:  export DEEPSEEK_API_KEY="sk-xxx"`);
+    console.warn(`   Or file:      echo "sk-xxx" > ~/.deepseek-quota/.token`);
+    console.warn(`   Setup will continue, but queries will fail until key is configured.\n`);
+  } else {
+    const source = hasEnvKey ? 'DEEPSEEK_API_KEY env var' : `~/.deepseek-quota/.token`;
+    console.log(`✓ API Key configured (${source})`);
+  }
+
+  // 4. Register MCP server
   console.log('Registering MCP server...');
   const addResult = await runCommand('claude', [
     'mcp', 'add', '--transport', 'stdio',
@@ -57,7 +71,7 @@ async function main() {
     console.log(`✓ MCP server "${MCP_NAME}" registered`);
   }
 
-  // 4. Install skill for slash command support
+  // 5. Install skill for slash command support
   console.log('Installing skill...');
   const skillSrc = join(dirname(fileURLToPath(import.meta.url)), 'skill', 'SKILL.md');
   const skillDest = join(homedir(), '.claude', 'skills', 'deepseek-quota', 'SKILL.md');
@@ -69,7 +83,7 @@ async function main() {
     console.error(`✗ Failed to install skill: ${err.message}`);
   }
 
-  // 5. Usage
+  // 6. Usage
   console.log('\n✨ Setup complete!\n');
   console.log('  Usage:  /deepseek-quota     — query balance + consumption');
   console.log('          @ds quota           — query via MCP');
