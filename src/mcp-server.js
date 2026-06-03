@@ -66,40 +66,85 @@ function readLastSession() {
   } catch { return null; }
 }
 
+function bar(n, width) {
+  const filled = Math.round((Math.min(100, Math.max(0, n)) / 100) * width);
+  return '▓'.repeat(filled) + '░'.repeat(width - filled);
+}
+function center(text, w) {
+  const padL = Math.floor((w - text.length) / 2);
+  return ' '.repeat(Math.max(0, padL)) + text;
+}
+function W() { return 46; }
+
 function formatOutput(balance, delta) {
+  const w = W();
   const lines = [];
-  lines.push('═══════════════════════════════');
-  lines.push('  DeepSeek 用量');
-  lines.push('═══════════════════════════════');
+  const bTotal = balance.totalBalance;
+  const bToppedUp = balance.toppedUpBalance;
+  const bGranted = balance.grantedBalance;
+
   lines.push('');
-  lines.push(`💰 账户余额: ¥${balance.totalBalance.toFixed(2)}`);
+  lines.push('  ╭' + '─'.repeat(w) + '╮');
+  lines.push('  │' + center('🔬  DeepSeek 用量监控', w) + ' '.repeat(w - center('🔬  DeepSeek 用量监控', w).length) + '│');
+  lines.push('  ╰' + '─'.repeat(w) + '╯');
+  lines.push('');
 
-  if (delta !== null && delta !== undefined) {
+  // 余额
+  const pct = Math.min(100, Math.round((bTotal / 200) * 100));
+  lines.push('  💰  账户余额');
+  lines.push('  ┌' + '─'.repeat(w) + '┐');
+  lines.push('  │' + center(`¥ ${bTotal.toFixed(2)}`, w) + '│');
+  lines.push('  │  ' + bar(pct, w - 6) + '  │');
+  lines.push('  │  ' + center('剩余 ' + pct + '%', w) + '│');
+  lines.push('  ├' + '─'.repeat(w) + '┤');
+  lines.push('  │  ' + `充值 ¥ ${bToppedUp.toFixed(2)}    赠送 ¥ ${bGranted.toFixed(2)}` + ' '.repeat(Math.max(0, w - 4 - 35)) + '│');
+  lines.push('  └' + '─'.repeat(w) + '┘');
+  lines.push('');
+
+  // 消耗追踪
+  if (delta !== null && delta !== undefined && Math.abs(delta) > 0.0001) {
+    lines.push('  📉  余额变化');
+    lines.push('  ┌' + '─'.repeat(w) + '┐');
     const sign = delta >= 0 ? '+' : '';
-    lines.push(`📉 上次查询以来: ${sign}¥${delta.toFixed(4)}`);
+    lines.push('  │' + center(`${sign}¥ ${Math.abs(delta).toFixed(4)}`, w) + '│');
+    lines.push('  └' + '─'.repeat(w) + '┘');
+    lines.push('');
+  }
 
-    if (initialBalance !== null) {
-      const totalDelta = initialBalance - balance.totalBalance;
-      lines.push(`🔥 本次会话累计: ¥${totalDelta.toFixed(4)}`);
+  if (initialBalance !== null) {
+    const consumed = initialBalance - bTotal;
+    if (consumed > 0.0001) {
+      lines.push('  🔥  本次会话消耗');
+      lines.push('  ┌' + '─'.repeat(w) + '┐');
+      const cPct = initialBalance > 0 ? (consumed / initialBalance) * 100 : 0;
+      lines.push('  │' + center(`¥ ${consumed.toFixed(4)}  (${cPct.toFixed(1)}%)`, w) + '│');
+      lines.push('  │' + center(`¥ ${initialBalance.toFixed(2)}  →  ¥ ${bTotal.toFixed(2)}`, w) + '│');
+      lines.push('  └' + '─'.repeat(w) + '┘');
+      lines.push('');
     }
   }
 
-  lines.push(`   充值: ¥${balance.toppedUpBalance.toFixed(2)}  赠送: ¥${balance.grantedBalance.toFixed(2)}`);
-
-  // 读取上次 session token 统计
+  // 上次会话
   const lastSession = readLastSession();
   if (lastSession) {
-    const f = (n) => n >= 1_000_000 ? `${(n / 1_000_000).toFixed(1)}M` : (n >= 1_000 ? `${(n / 1_000).toFixed(1)}K` : String(n));
+    const f = fmtNum;
+    lines.push('  📊  上次会话');
+    lines.push('  ┌' + '─'.repeat(w) + '┐');
+    lines.push('  │' + center(lastSession.project, w) + '│');
+    lines.push('  ├' + '─'.repeat(w) + '┤');
+    lines.push('  │  ' + `Token 总计    ${lastSession.totalTokens.toLocaleString().padStart(14)}` + ' '.repeat(w - 4 - 34) + '│');
+    lines.push('  │  ' + `输入  ${f(lastSession.inputTokens).padStart(10)}    输出  ${f(lastSession.outputTokens).padStart(10)}` + ' '.repeat(w - 4 - 36) + '│');
+    if (lastSession.cacheRead > 0) {
+      lines.push('  │  ' + `缓存命中  ${f(lastSession.cacheRead).padStart(10)}` + ' '.repeat(w - 4 - 22) + '│');
+    }
+    lines.push('  │  ' + `费用  $${lastSession.costUSD.toFixed(4).padStart(18)}` + ' '.repeat(w - 4 - 30) + '│');
+    lines.push('  └' + '─'.repeat(w) + '┘');
     lines.push('');
-    lines.push(`📊 上次会话 (${lastSession.project})`);
-    lines.push(`   Token: ${lastSession.totalTokens.toLocaleString()} (入 ${f(lastSession.inputTokens)} | 出 ${f(lastSession.outputTokens)})`);
-    lines.push(`   缓存命中: ${f(lastSession.cacheRead)}  缓存写入: ${f(lastSession.cacheCreation)}`);
-    lines.push(`   费用: $${lastSession.costUSD.toFixed(4)}`);
   }
 
-  lines.push('');
-  lines.push('💡 定价 (V4-Pro)');
-  lines.push('   缓存命中: ¥0.025/M | 未命中: ¥3.0/M | 输出: ¥6.0/M');
+  lines.push('  💡  V4-Pro 定价');
+  lines.push('  ' + '─'.repeat(w + 2));
+  lines.push('  缓存命中  ¥0.025/M    未命中  ¥3.0/M    输出  ¥6.0/M');
   lines.push('');
 
   return lines.join('\n');
