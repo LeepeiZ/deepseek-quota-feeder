@@ -7,6 +7,9 @@ import {
   ListToolsRequestSchema,
 } from '@modelcontextprotocol/sdk/types.js';
 import { loadConfig } from './config.js';
+import { readFileSync, existsSync } from 'node:fs';
+import { homedir } from 'node:os';
+import { join } from 'node:path';
 import { fetchAll } from './fetcher.js';
 import { writeSnapshot, readSnapshot } from './snapshot.js';
 
@@ -24,6 +27,43 @@ function fmtNum(n) {
   if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;
   if (n >= 1_000) return `${(n / 1_000).toFixed(1)}K`;
   return String(n);
+}
+
+function readLastSession() {
+  try {
+    const claudeJson = join(homedir(), '.claude.json');
+    if (!existsSync(claudeJson)) return null;
+    const data = JSON.parse(readFileSync(claudeJson, 'utf8'));
+    const projects = data.projects;
+    if (!projects) return null;
+
+    let latestProject = null, latestTime = 0;
+    for (const [projectPath, p] of Object.entries(projects)) {
+      const modified = p.lastSessionModified || 0;
+      if (modified > latestTime && p.lastModelUsage && Object.keys(p.lastModelUsage).length > 0) {
+        latestTime = modified;
+        latestProject = { path: projectPath, ...p };
+      }
+    }
+    if (!latestProject) return null;
+
+    let totalInput = 0, totalOutput = 0, totalCacheRead = 0, totalCacheCreation = 0, totalCost = 0;
+    for (const [, usage] of Object.entries(latestProject.lastModelUsage)) {
+      totalInput += usage.inputTokens || 0;
+      totalOutput += usage.outputTokens || 0;
+      totalCacheRead += usage.cacheReadInputTokens || 0;
+      totalCacheCreation += usage.cacheCreationInputTokens || 0;
+      totalCost += usage.costUSD || 0;
+    }
+
+    return {
+      project: latestProject.path.replace(homedir(), '~'),
+      totalTokens: totalInput + totalOutput + totalCacheRead + totalCacheCreation,
+      inputTokens: totalInput, outputTokens: totalOutput,
+      cacheRead: totalCacheRead, cacheCreation: totalCacheCreation,
+      costUSD: totalCost,
+    };
+  } catch { return null; }
 }
 
 function formatOutput(balance, delta) {
@@ -44,11 +84,22 @@ function formatOutput(balance, delta) {
     }
   }
 
-  lines.push(`   充值余额: ¥${balance.toppedUpBalance.toFixed(2)}`);
-  lines.push(`   赠送余额: ¥${balance.grantedBalance.toFixed(2)}`);
+  lines.push(`   充值: ¥${balance.toppedUpBalance.toFixed(2)}  赠送: ¥${balance.grantedBalance.toFixed(2)}`);
+
+  // 读取上次 session token 统计
+  const lastSession = readLastSession();
+  if (lastSession) {
+    const f = (n) => n >= 1_000_000 ? `${(n / 1_000_000).toFixed(1)}M` : (n >= 1_000 ? `${(n / 1_000).toFixed(1)}K` : String(n));
+    lines.push('');
+    lines.push(`📊 上次会话 (${lastSession.project})`);
+    lines.push(`   Token: ${lastSession.totalTokens.toLocaleString()} (入 ${f(lastSession.inputTokens)} | 出 ${f(lastSession.outputTokens)})`);
+    lines.push(`   缓存命中: ${f(lastSession.cacheRead)}  缓存写入: ${f(lastSession.cacheCreation)}`);
+    lines.push(`   费用: $${lastSession.costUSD.toFixed(4)}`);
+  }
+
   lines.push('');
   lines.push('💡 定价 (V4-Pro)');
-  lines.push('   缓存命中: ¥0.025/M | 缓存未命中: ¥3.0/M | 输出: ¥6.0/M');
+  lines.push('   缓存命中: ¥0.025/M | 未命中: ¥3.0/M | 输出: ¥6.0/M');
   lines.push('');
 
   return lines.join('\n');
