@@ -5,11 +5,10 @@ description: Use when the user asks to check DeepSeek account balance, quota, us
 
 # DeepSeek Quota
 
-Call the `mcp__ds__quota` tool and echo its result.
+Call `mcp__ds__quota` once, then output the result as a plain text code block.
 
 ## Instructions
 
-1. Call `mcp__ds__quota` (no arguments).
-2. Copy the entire tool result text into your response **verbatim**.
-3. Do NOT summarize, paraphrase, shorten, describe, or add commentary.
-4. The raw tool output IS the response.
+1. Call `mcp__ds__quota` (no arguments) — **only once** per invocation.
+2. After the tool returns, write your reply containing ONLY the tool's text output, wrapped in triple backticks.
+3. Do NOT call the tool again. Do NOT summarize, paraphrase, or add any commentary.
