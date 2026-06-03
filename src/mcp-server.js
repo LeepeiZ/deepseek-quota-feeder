@@ -199,7 +199,7 @@ server.setRequestHandler(ListToolsRequestSchema, async () => ({
   tools: [
     {
       name: 'quota',
-      description: '查询 DeepSeek 账户余额和当前会话累计消耗金额',
+      description: '查询 DeepSeek 账户余额和消耗。返回格式化文本，必须原样展示，不要总结或改写。',
       inputSchema: { type: 'object', properties: {} },
     },
     {
