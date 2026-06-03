@@ -5,6 +5,10 @@ import {
   checkClaudeCode,
   checkPackageCommand,
 } from './utils/env-check.js';
+import { readFileSync, mkdirSync, writeFileSync } from 'node:fs';
+import { homedir } from 'node:os';
+import { join, dirname } from 'node:path';
+import { fileURLToPath } from 'node:url';
 
 const MCP_NAME = 'ds';
 const MCP_CMD = 'deepseek-quota-mcp';
@@ -53,10 +57,23 @@ async function main() {
     console.log(`✓ MCP server "${MCP_NAME}" registered`);
   }
 
-  // 4. Usage
+  // 4. Install skill for slash command support
+  console.log('Installing skill...');
+  const skillSrc = join(dirname(fileURLToPath(import.meta.url)), 'skill', 'SKILL.md');
+  const skillDest = join(homedir(), '.claude', 'skills', 'deepseek-quota', 'SKILL.md');
+  try {
+    mkdirSync(dirname(skillDest), { recursive: true });
+    writeFileSync(skillDest, readFileSync(skillSrc, 'utf8'));
+    console.log(`✓ Skill installed: ~/.claude/skills/deepseek-quota/SKILL.md`);
+  } catch (err) {
+    console.error(`✗ Failed to install skill: ${err.message}`);
+  }
+
+  // 5. Usage
   console.log('\n✨ Setup complete!\n');
-  console.log('  Usage:  @ds quota         — query balance + consumption');
-  console.log('          @ds quota_refresh  — force refresh');
+  console.log('  Usage:  /deepseek-quota     — query balance + consumption');
+  console.log('          @ds quota           — query via MCP');
+  console.log('          @ds quota_refresh   — force refresh');
   console.log('');
   console.log('  API key: echo "sk-xxx" > ~/.deepseek-quota/.token');
   console.log('');
