@@ -131,7 +131,7 @@ export async function checkClaudeCode() {
 
 /**
  * 检查 npm 包命令是否可用
- * @param {string} cmd - 如 'kimi-quota-mcp'
+ * @param {string} cmd - 如 'deepseek-quota-mcp'
  * @returns {Promise<{available: boolean, path: string|null}>}
  */
 export async function checkPackageCommand(cmd) {
