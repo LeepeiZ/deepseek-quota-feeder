@@ -1,5 +1,6 @@
 import { readFileSync, writeFileSync, mkdirSync } from 'node:fs';
 import { dirname } from 'node:path';
+import { fmtNum } from './utils/format.js';
 
 /**
  * 根据 DeepSeek 数据计算 session 费用
@@ -121,14 +122,8 @@ export function formatQuota(balance, daily, sessionTokens, pricing) {
     ? sessionTokens.cache_hit + sessionTokens.cache_miss + sessionTokens.output
     : 0;
 
-  const fmt = (n) => {
-    if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;
-    if (n >= 1_000) return `${(n / 1_000).toFixed(1)}K`;
-    return String(n);
-  };
-
   if (daily) {
-    return `会话: ${fmt(sessionTotal)} tokens / ¥${sessionCost.toFixed(2)} | 今日: ${fmt(daily.totalTokens)} tokens / ¥${daily.costYuan.toFixed(2)} | 余额: ¥${balance.totalBalance.toFixed(2)}`;
+    return `会话: ${fmtNum(sessionTotal)} tokens / ¥${sessionCost.toFixed(2)} | 今日: ${fmtNum(daily.totalTokens)} tokens / ¥${daily.costYuan.toFixed(2)} | 余额: ¥${balance.totalBalance.toFixed(2)}`;
   }
-  return `会话: ${fmt(sessionTotal)} tokens / ¥${sessionCost.toFixed(2)} | 余额: ¥${balance.totalBalance.toFixed(2)} (赠送 ¥${balance.grantedBalance.toFixed(2)} | 充值 ¥${balance.toppedUpBalance.toFixed(2)})`;
+  return `会话: ${fmtNum(sessionTotal)} tokens / ¥${sessionCost.toFixed(2)} | 余额: ¥${balance.totalBalance.toFixed(2)} (赠送 ¥${balance.grantedBalance.toFixed(2)} | 充值 ¥${balance.toppedUpBalance.toFixed(2)})`;
 }

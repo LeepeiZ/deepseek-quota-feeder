@@ -1,7 +1,7 @@
 import { spawn } from 'node:child_process';
 import { readdirSync, readFileSync } from 'node:fs';
-import { homedir } from 'node:os';
 import { join } from 'node:path';
+import { getClaudeConfigDir } from './paths.js';
 
 /**
  * 安全执行命令（不经过 shell）
@@ -58,13 +58,7 @@ export async function commandExists(cmd) {
   return null;
 }
 
-function getClaudeConfigDir() {
-  const envDir = process.env.CLAUDE_CONFIG_DIR?.trim();
-  if (envDir) {
-    return envDir.startsWith('~') ? join(homedir(), envDir.slice(2)) : envDir;
-  }
-  return join(homedir(), '.claude');
-}
+// getClaudeConfigDir is now imported from ./paths.js
 
 /**
  * 从 Claude Code 的 shell snapshot 文件中检测命令劫持

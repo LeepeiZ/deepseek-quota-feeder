@@ -1,17 +1,10 @@
 import { readFileSync, writeFileSync, existsSync, mkdirSync, readdirSync, statSync } from 'node:fs';
-import { homedir } from 'node:os';
 import { join, dirname } from 'node:path';
+import { getClaudeConfigDir } from './paths.js';
 
-/**
- * 获取 Claude Code 配置目录
- */
-export function getClaudeConfigDir() {
-  const envDir = process.env.CLAUDE_CONFIG_DIR?.trim();
-  if (envDir) {
-    return envDir.startsWith('~') ? join(homedir(), envDir.slice(2)) : envDir;
-  }
-  return join(homedir(), '.claude');
-}
+// getClaudeConfigDir is now imported from ./paths.js
+// Re-export for backward compatibility
+export { getClaudeConfigDir } from './paths.js';
 
 /**
  * 获取 HUD 插件配置目录

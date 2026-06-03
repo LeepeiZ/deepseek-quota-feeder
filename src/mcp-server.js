@@ -12,10 +12,15 @@ import { homedir } from 'node:os';
 import { join } from 'node:path';
 import { fetchAll } from './fetcher.js';
 import { writeSnapshot, readSnapshot } from './snapshot.js';
+import { fmtNum, centerPad, padEnd, strWidth } from './utils/format.js';
 
 const config = loadConfig();
 let intervalId = null;
 
+// sessionTokens: 用于记录从快照恢复的历史 token 累计。
+// 注意：在 MCP 模式下，此值仅在启动时从快照恢复，运行过程中不会被更新，
+// 因为 DeepSeek API 不提供 token 级别的用量查询接口。
+// 实际的会话消耗通过 initialBalance - currentBalance（余额差值）来计算。
 const sessionTokens = readSnapshot(config.snapshotPath) ?? {
   cache_hit: 0, cache_miss: 0, output: 0,
 };
@@ -23,11 +28,7 @@ const sessionTokens = readSnapshot(config.snapshotPath) ?? {
 let lastResult = null;
 let initialBalance = null;
 
-function fmtNum(n) {
-  if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;
-  if (n >= 1_000) return `${(n / 1_000).toFixed(1)}K`;
-  return String(n);
-}
+// fmtNum is now imported from ./utils/format.js
 
 function readLastSession() {
   try {
@@ -70,11 +71,18 @@ function bar(n, width) {
   const filled = Math.round((Math.min(100, Math.max(0, n)) / 100) * width);
   return '▓'.repeat(filled) + '░'.repeat(width - filled);
 }
-function center(text, w) {
-  const padL = Math.floor((w - text.length) / 2);
-  return ' '.repeat(Math.max(0, padL)) + text;
-}
+// center() replaced by centerPad() from utils/format.js (CJK-aware)
 function W() { return 46; }
+
+/**
+ * 填充一行内容至表格宽度 w，基于显示宽度对齐
+ * @param {string} content - 行内容（不含边框）
+ * @param {number} w - 表格内宽度
+ * @returns {string} 右填充至宽度 w 的字符串
+ */
+function fillRow(content, w) {
+  return padEnd(content, w);
+}
 
 function formatOutput(balance, delta) {
   const w = W();
@@ -85,7 +93,8 @@ function formatOutput(balance, delta) {
 
   lines.push('');
   lines.push('  ╭' + '─'.repeat(w) + '╮');
-  lines.push('  │' + center('🔬  DeepSeek 用量监控', w) + ' '.repeat(w - center('🔬  DeepSeek 用量监控', w).length) + '│');
+  const title = '🔬  DeepSeek 用量监控';
+  lines.push('  │' + fillRow(centerPad(title, w), w) + '│');
   lines.push('  ╰' + '─'.repeat(w) + '╯');
   lines.push('');
 
@@ -93,11 +102,12 @@ function formatOutput(balance, delta) {
   const pct = Math.min(100, Math.round((bTotal / 200) * 100));
   lines.push('  💰  账户余额');
   lines.push('  ┌' + '─'.repeat(w) + '┐');
-  lines.push('  │' + center(`¥ ${bTotal.toFixed(2)}`, w) + '│');
+  lines.push('  │' + fillRow(centerPad(`¥ ${bTotal.toFixed(2)}`, w), w) + '│');
   lines.push('  │  ' + bar(pct, w - 6) + '  │');
-  lines.push('  │  ' + center('剩余 ' + pct + '%', w) + '│');
+  lines.push('  │' + fillRow(centerPad('剩余 ' + pct + '%', w), w) + '│');
   lines.push('  ├' + '─'.repeat(w) + '┤');
-  lines.push('  │  ' + `充值 ¥ ${bToppedUp.toFixed(2)}    赠送 ¥ ${bGranted.toFixed(2)}` + ' '.repeat(Math.max(0, w - 4 - 35)) + '│');
+  const balanceDetail = `  充值 ¥ ${bToppedUp.toFixed(2)}    赠送 ¥ ${bGranted.toFixed(2)}`;
+  lines.push('  │' + fillRow(balanceDetail, w) + '│');
   lines.push('  └' + '─'.repeat(w) + '┘');
   lines.push('');
 
@@ -106,7 +116,7 @@ function formatOutput(balance, delta) {
     lines.push('  📉  余额变化');
     lines.push('  ┌' + '─'.repeat(w) + '┐');
     const sign = delta >= 0 ? '+' : '';
-    lines.push('  │' + center(`${sign}¥ ${Math.abs(delta).toFixed(4)}`, w) + '│');
+    lines.push('  │' + fillRow(centerPad(`${sign}¥ ${Math.abs(delta).toFixed(4)}`, w), w) + '│');
     lines.push('  └' + '─'.repeat(w) + '┘');
     lines.push('');
   }
@@ -117,8 +127,8 @@ function formatOutput(balance, delta) {
       lines.push('  🔥  本次会话消耗');
       lines.push('  ┌' + '─'.repeat(w) + '┐');
       const cPct = initialBalance > 0 ? (consumed / initialBalance) * 100 : 0;
-      lines.push('  │' + center(`¥ ${consumed.toFixed(4)}  (${cPct.toFixed(1)}%)`, w) + '│');
-      lines.push('  │' + center(`¥ ${initialBalance.toFixed(2)}  →  ¥ ${bTotal.toFixed(2)}`, w) + '│');
+      lines.push('  │' + fillRow(centerPad(`¥ ${consumed.toFixed(4)}  (${cPct.toFixed(1)}%)`, w), w) + '│');
+      lines.push('  │' + fillRow(centerPad(`¥ ${initialBalance.toFixed(2)}  →  ¥ ${bTotal.toFixed(2)}`, w), w) + '│');
       lines.push('  └' + '─'.repeat(w) + '┘');
       lines.push('');
     }
@@ -127,17 +137,16 @@ function formatOutput(balance, delta) {
   // 上次会话
   const lastSession = readLastSession();
   if (lastSession) {
-    const f = fmtNum;
     lines.push('  📊  上次会话');
     lines.push('  ┌' + '─'.repeat(w) + '┐');
-    lines.push('  │' + center(lastSession.project, w) + '│');
+    lines.push('  │' + fillRow(centerPad(lastSession.project, w), w) + '│');
     lines.push('  ├' + '─'.repeat(w) + '┤');
-    lines.push('  │  ' + `Token 总计    ${lastSession.totalTokens.toLocaleString().padStart(14)}` + ' '.repeat(w - 4 - 34) + '│');
-    lines.push('  │  ' + `输入  ${f(lastSession.inputTokens).padStart(10)}    输出  ${f(lastSession.outputTokens).padStart(10)}` + ' '.repeat(w - 4 - 36) + '│');
+    lines.push('  │' + fillRow(`  Token 总计    ${lastSession.totalTokens.toLocaleString().padStart(14)}`, w) + '│');
+    lines.push('  │' + fillRow(`  输入  ${fmtNum(lastSession.inputTokens).padStart(10)}    输出  ${fmtNum(lastSession.outputTokens).padStart(10)}`, w) + '│');
     if (lastSession.cacheRead > 0) {
-      lines.push('  │  ' + `缓存命中  ${f(lastSession.cacheRead).padStart(10)}` + ' '.repeat(w - 4 - 22) + '│');
+      lines.push('  │' + fillRow(`  缓存命中  ${fmtNum(lastSession.cacheRead).padStart(10)}`, w) + '│');
     }
-    lines.push('  │  ' + `费用  $${lastSession.costUSD.toFixed(4).padStart(18)}` + ' '.repeat(w - 4 - 30) + '│');
+    lines.push('  │' + fillRow(`  费用  $${lastSession.costUSD.toFixed(4).padStart(18)}`, w) + '│');
     lines.push('  └' + '─'.repeat(w) + '┘');
     lines.push('');
   }
@@ -162,6 +171,8 @@ async function refreshQuota() {
     const previousBalance = lastResult?.success ? lastResult.balance.totalBalance : null;
     const delta = previousBalance !== null ? balance.totalBalance - previousBalance : null;
 
+    // sessionTokens 仅包含从快照恢复的历史值，不反映当前会话的实时 token 消耗
+    // 实际消耗通过 initialBalance - currentBalance 计算
     writeSnapshot(
       config.snapshotPath, balance, daily,
       sessionTokens, config.pricing, config.sessionBudgetTokens,
