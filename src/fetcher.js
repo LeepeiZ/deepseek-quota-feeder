@@ -52,12 +52,6 @@ function parseBalanceResponse(data) {
     throw new Error('No balance info in response');
   }
 
-  const parseNum = (v) => {
-    if (typeof v === 'number') return v;
-    if (typeof v === 'string') return parseFloat(v) || 0;
-    return 0;
-  };
-
   return {
     totalBalance: parseNum(info.total_balance),
     grantedBalance: parseNum(info.granted_balance),
