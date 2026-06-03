@@ -40,11 +40,13 @@ export function writeSnapshot(path, balance, daily, sessionTokens, pricing, sess
     ? Math.round((sessionTotal / sessionBudgetTokens) * 100)
     : 0;
 
-  // seven_day: 由于 DeepSeek 不提供当日用量 API，改为展示赠送余额占比
-  // granted_balance / total_balance × 100
-  const sevenDayPct = balance.totalBalance > 0
-    ? Math.round((balance.grantedBalance / balance.totalBalance) * 100)
-    : 0;
+  // seven_day: 由于 DeepSeek 不提供当日用量 API，改为余额消耗告警百分比
+  // 余额越低百分比越高：低于 ¥10 时 100%，¥50 以上为 0%
+  // 告警公式: max(0, (50 - balance) / 50 * 100)，即 ¥0=100%, ¥25=50%, ¥50+=0%
+  const balanceWarning = balance.totalBalance > 0
+    ? Math.round(Math.max(0, (50 - balance.totalBalance) / 50 * 100))
+    : 100;
+  const sevenDayPct = balanceWarning;
 
   // 计算会话费用
   const sessionCost = calculateSessionCost(sessionTokens, pricing);
