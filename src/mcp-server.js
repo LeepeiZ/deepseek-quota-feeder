@@ -8,33 +8,70 @@ import {
 } from '@modelcontextprotocol/sdk/types.js';
 import { loadConfig } from './config.js';
 import { fetchAll } from './fetcher.js';
-import { writeSnapshot, readSnapshot, calculateSessionCost, formatQuota } from './snapshot.js';
+import { writeSnapshot, readSnapshot } from './snapshot.js';
 
 const config = loadConfig();
 let intervalId = null;
 
-// 从已有快照恢复会话 token 累计（跨 MCP 重启保留）
-let sessionTokens = readSnapshot(config.snapshotPath) ?? {
-  cache_hit: 0,
-  cache_miss: 0,
-  output: 0,
+const sessionTokens = readSnapshot(config.snapshotPath) ?? {
+  cache_hit: 0, cache_miss: 0, output: 0,
 };
 
-// 缓存最近一次成功的 fetch 结果，供 get 工具直接返回
 let lastResult = null;
+let initialBalance = null;
+
+function fmtNum(n) {
+  if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;
+  if (n >= 1_000) return `${(n / 1_000).toFixed(1)}K`;
+  return String(n);
+}
+
+function formatOutput(balance, delta) {
+  const lines = [];
+  lines.push('═══════════════════════════════');
+  lines.push('  DeepSeek 用量');
+  lines.push('═══════════════════════════════');
+  lines.push('');
+  lines.push(`💰 账户余额: ¥${balance.totalBalance.toFixed(2)}`);
+
+  if (delta !== null && delta !== undefined) {
+    const sign = delta >= 0 ? '+' : '';
+    lines.push(`📉 上次查询以来: ${sign}¥${delta.toFixed(4)}`);
+
+    if (initialBalance !== null) {
+      const totalDelta = initialBalance - balance.totalBalance;
+      lines.push(`🔥 本次会话累计: ¥${totalDelta.toFixed(4)}`);
+    }
+  }
+
+  lines.push(`   充值余额: ¥${balance.toppedUpBalance.toFixed(2)}`);
+  lines.push(`   赠送余额: ¥${balance.grantedBalance.toFixed(2)}`);
+  lines.push('');
+  lines.push('💡 定价 (V4-Pro)');
+  lines.push('   缓存命中: ¥0.025/M | 缓存未命中: ¥3.0/M | 输出: ¥6.0/M');
+  lines.push('');
+
+  return lines.join('\n');
+}
 
 async function refreshQuota() {
   try {
     const { balance, daily } = await fetchAll(config.apiKey);
-    const snapshot = writeSnapshot(
-      config.snapshotPath,
-      balance,
-      daily,
-      sessionTokens,
-      config.pricing,
-      config.sessionBudgetTokens
+
+    // 记录初始余额用于会话累计计算
+    if (initialBalance === null) {
+      initialBalance = balance.totalBalance;
+    }
+
+    const previousBalance = lastResult?.success ? lastResult.balance.totalBalance : null;
+    const delta = previousBalance !== null ? balance.totalBalance - previousBalance : null;
+
+    writeSnapshot(
+      config.snapshotPath, balance, daily,
+      sessionTokens, config.pricing, config.sessionBudgetTokens,
     );
-    lastResult = { success: true, balance, daily, snapshot, formatted: formatQuota(balance, daily, sessionTokens, config.pricing) };
+
+    lastResult = { success: true, balance, daily, delta };
     return lastResult;
   } catch (err) {
     return { success: false, error: err.message };
@@ -42,150 +79,92 @@ async function refreshQuota() {
 }
 
 function startRefreshLoop() {
-  // 定时刷新（用 stderr 输出，避免干扰 stdio transport）
-  // 首次刷新已在启动时 await 完成
   intervalId = setInterval(() => {
     refreshQuota().then((result) => {
       if (result.success) {
-        console.error(`[deepseek-quota] Refreshed: ${result.formatted}`);
+        console.error(`[deepseek-quota] 余额: ¥${result.balance.totalBalance.toFixed(2)}`);
       } else {
-        console.error(`[deepseek-quota] Refresh failed: ${result.error}`);
+        console.error(`[deepseek-quota] 刷新失败: ${result.error}`);
       }
     });
   }, config.refreshInterval);
 }
 
 function stopRefreshLoop() {
-  if (intervalId) {
-    clearInterval(intervalId);
-    intervalId = null;
-  }
+  if (intervalId) { clearInterval(intervalId); intervalId = null; }
 }
 
 const server = new Server(
-  {
-    name: 'deepseek-quota',
-    version: '1.0.0',
-  },
-  {
-    capabilities: {
-      tools: {},
-    },
-  }
+  { name: 'deepseek-quota', version: '1.0.0' },
+  { capabilities: { tools: {} } },
 );
 
-server.setRequestHandler(ListToolsRequestSchema, async () => {
-  return {
-    tools: [
-      {
-        name: 'refresh_deepseek_quota',
-        description: '立即刷新 DeepSeek 额度数据（余额 + 当日消耗），并写入 HUD 快照文件',
-        inputSchema: {
-          type: 'object',
-          properties: {},
-        },
-      },
-      {
-        name: 'get_deepseek_quota',
-        description: '获取当前 DeepSeek 用量详情：会话 token 统计（缓存命中/未命中/输出）、费用、当日消耗、账户余额',
-        inputSchema: {
-          type: 'object',
-          properties: {},
-        },
-      },
-    ],
-  };
-});
+server.setRequestHandler(ListToolsRequestSchema, async () => ({
+  tools: [
+    {
+      name: 'deepseek',
+      description: '查询 DeepSeek 账户余额和当前会话累计消耗金额',
+      inputSchema: { type: 'object', properties: {} },
+    },
+    {
+      name: 'deepseek_refresh',
+      description: '强制刷新 DeepSeek 余额数据',
+      inputSchema: { type: 'object', properties: {} },
+    },
+  ],
+}));
 
 server.setRequestHandler(CallToolRequestSchema, async (request) => {
   const { name } = request.params;
 
-  if (name === 'refresh_deepseek_quota') {
+  if (name === 'deepseek_refresh') {
     const result = await refreshQuota();
     if (result.success) {
       return {
-        content: [
-          {
-            type: 'text',
-            text: `DeepSeek 额度已刷新\n${result.formatted}`,
-          },
-        ],
+        content: [{
+          type: 'text',
+          text: `已刷新 | 余额: ¥${result.balance.totalBalance.toFixed(2)}`,
+        }],
       };
-    } else {
+    }
+    return { content: [{ type: 'text', text: `刷新失败: ${result.error}` }], isError: true };
+  }
+
+  if (name === 'deepseek') {
+    const result = lastResult ?? await refreshQuota();
+
+    if (!result || !result.success) {
       return {
-        content: [
-          {
-            type: 'text',
-            text: `刷新失败: ${result.error}`,
-          },
-        ],
+        content: [{
+          type: 'text',
+          text: result ? `查询失败: ${result.error}` : '暂无数据，请稍后重试',
+        }],
         isError: true,
       };
     }
-  }
 
-  if (name === 'get_deepseek_quota') {
-    if (!lastResult) {
-      return {
-        content: [{ type: 'text', text: '暂无数据，请先调用 refresh_deepseek_quota 刷新' }],
-      };
-    }
-
-    const { balance, daily } = lastResult;
-    const st = sessionTokens;
-    const sessionTotal = st.cache_hit + st.cache_miss + st.output;
-    const cost = calculateSessionCost(st, config.pricing);
-
-    const fmt = (n) => n >= 1000 ? `${(n / 1000).toFixed(0)}K` : String(n);
-
-    const dailySection = daily
-      ? `当日消耗:\n` +
-        `  - Token: ${daily.totalTokens.toLocaleString()}\n` +
-        `  - 费用: ¥${daily.costYuan.toFixed(2)}\n\n`
-      : `当日消耗: N/A (DeepSeek 不提供公开用量 API)\n\n`;
-
+    const { balance, delta } = result;
     return {
-      content: [
-        {
-          type: 'text',
-          text:
-            `DeepSeek 用量详情:\n\n` +
-            `会话统计:\n` +
-            `  - Token: ${sessionTotal.toLocaleString()} (缓存命中 ${fmt(st.cache_hit)} | 缓存未命中 ${fmt(st.cache_miss)} | 输出 ${fmt(st.output)})\n` +
-            `  - 费用: ¥${cost.toFixed(2)}\n\n` +
-            dailySection +
-            `账户余额:\n` +
-            `  - 总余额: ¥${balance.totalBalance.toFixed(2)}\n` +
-            `  - 充值余额: ¥${balance.toppedUpBalance.toFixed(2)}\n` +
-            `  - 赠送余额: ¥${balance.grantedBalance.toFixed(2)}`,
-        },
-      ],
+      content: [{
+        type: 'text',
+        text: formatOutput(balance, delta),
+      }],
     };
   }
 
   throw new Error(`Unknown tool: ${name}`);
 });
 
-// 处理进程终止信号
-process.on('SIGINT', () => {
-  stopRefreshLoop();
-  process.exit(0);
-});
+process.on('SIGINT', () => { stopRefreshLoop(); process.exit(0); });
+process.on('SIGTERM', () => { stopRefreshLoop(); process.exit(0); });
 
-process.on('SIGTERM', () => {
-  stopRefreshLoop();
-  process.exit(0);
-});
-
-// 启动
 const transport = new StdioServerTransport();
 await server.connect(transport);
-// 等待首次刷新完成，避免 get_deepseek_quota 返回空数据
 await refreshQuota().then((result) => {
   if (result.success) {
-    console.error(`[deepseek-quota] Initial refresh: ${result.formatted}`);
+    console.error(`[deepseek-quota] 启动 | 初始余额: ¥${result.balance.totalBalance.toFixed(2)}`);
   } else {
-    console.error(`[deepseek-quota] Initial refresh failed: ${result.error}`);
+    console.error(`[deepseek-quota] 启动失败: ${result.error}`);
   }
 });
 startRefreshLoop();
