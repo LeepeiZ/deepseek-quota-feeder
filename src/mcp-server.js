@@ -138,6 +138,12 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
 
     const fmt = (n) => n >= 1000 ? `${(n / 1000).toFixed(0)}K` : String(n);
 
+    const dailySection = daily
+      ? `当日消耗:\n` +
+        `  - Token: ${daily.totalTokens.toLocaleString()}\n` +
+        `  - 费用: ¥${daily.costYuan.toFixed(2)}\n\n`
+      : `当日消耗: N/A (DeepSeek 不提供公开用量 API)\n\n`;
+
     return {
       content: [
         {
@@ -147,9 +153,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
             `会话统计:\n` +
             `  - Token: ${sessionTotal.toLocaleString()} (缓存命中 ${fmt(st.cache_hit)} | 缓存未命中 ${fmt(st.cache_miss)} | 输出 ${fmt(st.output)})\n` +
             `  - 费用: ¥${cost.toFixed(2)}\n\n` +
-            `当日消耗:\n` +
-            `  - Token: ${daily.totalTokens.toLocaleString()}\n` +
-            `  - 费用: ¥${daily.costYuan.toFixed(2)}\n\n` +
+            dailySection +
             `账户余额:\n` +
             `  - 总余额: ¥${balance.totalBalance.toFixed(2)}\n` +
             `  - 充值余额: ¥${balance.toppedUpBalance.toFixed(2)}\n` +

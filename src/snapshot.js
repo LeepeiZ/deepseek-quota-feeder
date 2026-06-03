@@ -40,13 +40,18 @@ export function writeSnapshot(path, balance, daily, sessionTokens, pricing, sess
     ? Math.round((sessionTotal / sessionBudgetTokens) * 100)
     : 0;
 
-  // 计算当日消耗占余额比 (seven_day)
-  const dailyVsBalancePct = balance.totalBalance > 0
-    ? Math.round((daily.costYuan / balance.totalBalance) * 100)
+  // seven_day: 由于 DeepSeek 不提供当日用量 API，改为展示赠送余额占比
+  // granted_balance / total_balance × 100
+  const sevenDayPct = balance.totalBalance > 0
+    ? Math.round((balance.grantedBalance / balance.totalBalance) * 100)
     : 0;
 
   // 计算会话费用
   const sessionCost = calculateSessionCost(sessionTokens, pricing);
+
+  // daily 可能为 null（DeepSeek 不提供当日用量 API）
+  const dailyTokens = daily?.totalTokens ?? 0;
+  const dailyCost = daily?.costYuan ?? 0;
 
   const snapshot = {
     updated_at: new Date().toISOString(),
@@ -55,7 +60,7 @@ export function writeSnapshot(path, balance, daily, sessionTokens, pricing, sess
       resets_at: null,
     },
     seven_day: {
-      used_percentage: Math.min(100, Math.max(0, dailyVsBalancePct)),
+      used_percentage: Math.min(100, Math.max(0, sevenDayPct)),
       resets_at: null,
     },
     _deepseek: {
@@ -68,8 +73,9 @@ export function writeSnapshot(path, balance, daily, sessionTokens, pricing, sess
         cost_yuan: sessionCost,
       },
       daily: {
-        tokens_total: daily.totalTokens,
-        cost_yuan: daily.costYuan,
+        tokens_total: dailyTokens,
+        cost_yuan: dailyCost,
+        note: daily === null ? 'DeepSeek does not provide a public daily usage API' : undefined,
       },
       balance: {
         total_yuan: balance.totalBalance,
@@ -119,5 +125,8 @@ export function formatQuota(balance, daily, sessionTokens, pricing) {
     return String(n);
   };
 
-  return `会话: ${fmt(sessionTotal)} tokens / ¥${sessionCost.toFixed(2)} | 今日: ${fmt(daily.totalTokens)} tokens / ¥${daily.costYuan.toFixed(2)} | 余额: ¥${balance.totalBalance.toFixed(2)}`;
+  if (daily) {
+    return `会话: ${fmt(sessionTotal)} tokens / ¥${sessionCost.toFixed(2)} | 今日: ${fmt(daily.totalTokens)} tokens / ¥${daily.costYuan.toFixed(2)} | 余额: ¥${balance.totalBalance.toFixed(2)}`;
+  }
+  return `会话: ${fmt(sessionTotal)} tokens / ¥${sessionCost.toFixed(2)} | 余额: ¥${balance.totalBalance.toFixed(2)} (赠送 ¥${balance.grantedBalance.toFixed(2)} | 充值 ¥${balance.toppedUpBalance.toFixed(2)})`;
 }

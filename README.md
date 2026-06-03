@@ -15,9 +15,10 @@
 ```
 Claude Code --MCP--> deepseek-quota-mcp --fetch--> snapshot.json --read--> claude-hud
                          │
-                         ├── GET /user/balance      → 账户余额
-                         └── GET /v1/usage          → 当日消耗
+                         └── GET /user/balance      → 账户余额
 ```
+
+> **注意：** DeepSeek 目前不提供公开的当日用量查询 API（`/v1/usage` 不存在），当日 Token 消耗仅可通过 [platform.deepseek.com](https://platform.deepseek.com) 控制台查看。HUD 中 `seven_day` 指标改为展示赠送余额占比。
 
 ## 安装
 
@@ -76,7 +77,7 @@ claude mcp add --transport stdio deepseek-quota -- npx -y deepseek-quota-feeder@
 | HUD 指标 | 含义 |
 |----------|------|
 | `five_hour` (5h) | 当前会话 token 使用率（相对于 100 万 token 预算） |
-| `seven_day` (7d) | 当日消耗占账户余额比 |
+| `seven_day` (7d) | 赠送余额占总余额比例 （DeepSeek 不提供当日用量 API，以此替代） |
 
 `_deepseek` 扩展字段包含完整金额和 token 细分（通过 MCP 工具查询）。
 
