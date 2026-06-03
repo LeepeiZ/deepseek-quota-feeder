@@ -1,0 +1,36 @@
+{
+  "name": "deepseek-quota-feeder",
+  "version": "1.0.0",
+  "description": "DeepSeek API quota feeder for claude-hud external usage",
+  "type": "module",
+  "main": "src/index.js",
+  "bin": {
+    "deepseek-quota-feeder": "src/index.js",
+    "deepseek-quota-mcp": "src/mcp-server.js",
+    "deepseek-quota-setup": "src/setup-mcp.js",
+    "deepseek-quota-configure-hud": "src/configure-hud.js"
+  },
+  "files": [
+    "src/",
+    "README.md",
+    "config.example.json"
+  ],
+  "scripts": {
+    "start": "node src/index.js",
+    "once": "node src/index.js --once"
+  },
+  "keywords": [
+    "deepseek",
+    "quota",
+    "claude-hud",
+    "mcp"
+  ],
+  "author": "",
+  "license": "MIT",
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.29.0"
+  }
+}

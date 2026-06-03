@@ -1,0 +1,11 @@
+{
+  "refreshInterval": 60000,
+  "snapshotPath": "~/.deepseek-quota/snapshot.json",
+  "sessionBudgetTokens": 1000000,
+  "pricing": {
+    "inputCacheHitPerMillion": 0.025,
+    "inputCacheMissPerMillion": 3.0,
+    "outputPerMillion": 6.0,
+    "currency": "CNY"
+  }
+}
