@@ -221,7 +221,7 @@ server.setRequestHandler(ListToolsRequestSchema, async () => ({
   tools: [
     {
       name: 'quota',
-      description: '查询 DeepSeek 账户余额和消耗。返回格式化文本，必须原样展示，不要总结或改写。',
+      description: 'Query DeepSeek account balance and usage. Returns pre-formatted text. CRITICAL: You MUST echo the tool result text verbatim in your response — do NOT summarize, paraphrase, shorten, or describe it. Copy the entire output block as-is.',
       inputSchema: { type: 'object', properties: {} },
     },
     {
