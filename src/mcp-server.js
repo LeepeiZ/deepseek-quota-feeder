@@ -198,12 +198,12 @@ const server = new Server(
 server.setRequestHandler(ListToolsRequestSchema, async () => ({
   tools: [
     {
-      name: 'deepseek',
+      name: 'quota',
       description: '查询 DeepSeek 账户余额和当前会话累计消耗金额',
       inputSchema: { type: 'object', properties: {} },
     },
     {
-      name: 'deepseek_refresh',
+      name: 'quota_refresh',
       description: '强制刷新 DeepSeek 余额数据',
       inputSchema: { type: 'object', properties: {} },
     },
@@ -213,7 +213,7 @@ server.setRequestHandler(ListToolsRequestSchema, async () => ({
 server.setRequestHandler(CallToolRequestSchema, async (request) => {
   const { name } = request.params;
 
-  if (name === 'deepseek_refresh') {
+  if (name === 'quota_refresh') {
     const result = await refreshQuota();
     if (result.success) {
       return {
@@ -226,7 +226,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
     return { content: [{ type: 'text', text: `刷新失败: ${result.error}` }], isError: true };
   }
 
-  if (name === 'deepseek') {
+  if (name === 'quota') {
     const result = lastResult ?? await refreshQuota();
 
     if (!result || !result.success) {
