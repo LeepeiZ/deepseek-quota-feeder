@@ -1,7 +1,7 @@
 {
   "name": "deepseek-quota-feeder",
   "version": "1.0.0",
-  "description": "DeepSeek API quota feeder for claude-hud external usage",
+  "description": "DeepSeek API quota monitor with MCP integration — live balance, cost tracking, and session stats in Claude Code",
   "type": "module",
   "main": "src/index.js",
   "bin": {
@@ -22,11 +22,17 @@
   "keywords": [
     "deepseek",
     "quota",
-    "claude-hud",
-    "mcp"
+    "balance",
+    "mcp",
+    "claude-code",
+    "cost-tracking"
   ],
   "author": "",
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/LeepeiZ/deepseek-quota-feeder"
+  },
   "engines": {
     "node": ">=18.0.0"
   },
